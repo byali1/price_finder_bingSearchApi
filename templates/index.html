@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Price Finder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-5 text-center">Product Price Finder</h1>
+
+    <div class="form-group">
+        <label for="productInput">Enter Product Keyword:</label>
+        <input type="text" id="productInput" class="form-control" placeholder="Search for a product" required>
+        <button class="btn btn-dark my-3" onclick="searchProduct()">Search</button>
+
+        <div class="row d-flex justify-content-center mb-5">
+            <div id="price-min-max" class="mt-3 text-center border border-dark border-opacity-25 rounded-4 p-2 w-50">
+            <p>The price information will be appear here.</p>
+        </div>
+        </div>
+    </div>
+    <div id="results" class="mt-3"></div>
+</div>
+
+<script>
+    var prices = [];
+
+function searchProduct() {
+    var query = $('#productInput').val();
+    $.post('/search', {query: query}, function(data) {
+        $('#results').empty();
+        if (data.length === 0) {
+            $('#results').append('<p>No products found.</p>');
+        } else {
+            data.forEach(function(product) {
+                var domain = extractDomain(product.url);
+                $('#results').append(
+                    `<div class="card mt-3">
+                        <div class="card-body">
+                            <a class="card-title text-primary fs-4" href="${product.url}" target="_blank" style="text-decoration: none;">${product.name}</a>
+                         <p class="card-text fw-normal">${domain}</p>
+                            <span id="price-${product.url.hashCode()}">Loading price...</span>
+                        </div>
+                    </div>`
+                );
+                getPrice(product.url, `#price-${product.url.hashCode()}`);
+            });
+        }
+    });
+}
+
+function getPrice(url, priceElementId) {
+    $.post('/get_price', {url: url}, function(data) {
+        if (data.price) {
+            $(priceElementId).text('Price: ' + data.price + ' TL').css({
+                'color': 'green',
+                'font-weight': 'bold'
+            });
+            // Fiyatı global dizimize ekleyelim
+            prices.push(parseFloat(data.price));
+        } else {
+            $(priceElementId).text('Price not available').css('color', 'red');
+        }
+        // Her fiyat çekildiğinde min ve max hesapla ve göster
+        updatePriceInfo();
+    });
+}
+
+// Min ve max fiyatları hesaplayıp gösteren fonksiyon
+function updatePriceInfo() {
+    if (prices.length > 0) {
+        var minPrice = Math.min.apply(Math, prices);
+        var maxPrice = Math.max.apply(Math, prices);
+
+        $('#price-min-max').html('Minimum price = ' + minPrice + ' TL<br>' +
+                                 'Maximum price = ' + maxPrice + ' TL<br>' +
+                                 'Price range = ' + minPrice + ' <--> '+ maxPrice + ' TL');
+    } else {
+        $('#price-min-max').html('Fiyat bilgisi mevcut değil.');
+    }
+}
+
+function extractDomain(url) {
+    var hostname;
+
+    // URL'den hostname'i çıkarma
+    if (url.indexOf("//") > -1) {
+        hostname = new URL(url).hostname;
+    } else {
+        hostname = url.split('/')[0];
+    }
+
+    // "www." kısmını kaldırma (varsa)
+    hostname = hostname.replace("www.", "");
+
+    return hostname;
+}
+
+// Simple hash function for creating unique IDs
+String.prototype.hashCode = function() {
+    var hash = 0, i, chr;
+    for (i = 0; i < this.length; i++) {
+        chr   = this.charCodeAt(i);
+        hash  = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
